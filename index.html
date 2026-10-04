@@ -57,6 +57,7 @@
     outline: 2px solid var(--accent);
     border-color: transparent;
   }
+  #priorityOrder { width: 240px; }
   button {
     padding: 9px 16px;
     border: none;
@@ -179,6 +180,35 @@
   }
   table.results th { background: #f8fafc; color: var(--muted); font-size: 12px; }
   table.results tr.avg td { font-weight: 700; background: #eef2ff; border-top: 2px solid var(--border); color: #3730a3; }
+
+  /* ---- Ajustes para dispositivos móviles ---- */
+  @media (max-width: 640px) {
+    body { padding: 14px 10px; }
+    h1 { font-size: 21px; }
+    .sub { font-size: 14px; margin-bottom: 14px; }
+    .card { padding: 14px; border-radius: 12px; margin-bottom: 14px; }
+    .controls { gap: 12px; }
+    .controls .field { width: 100%; }
+    .controls select,
+    .controls input[type="number"] { width: 100%; font-size: 16px; }
+    #priorityOrder { width: 100%; }
+    button { width: 100%; padding: 12px 16px; touch-action: manipulation; }
+    .info { font-size: 13px; }
+    .legend { gap: 12px; font-size: 12px; }
+
+    #fields { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.fields { min-width: 300px; }
+    table.fields th { font-size: 12px; }
+    table.fields input { width: 64px; font-size: 16px; }
+
+    #table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.results { min-width: 460px; }
+    table.results th, table.results td { padding: 7px 6px; }
+
+    table.gantt-grid th, table.gantt-grid td { width: 24px; min-width: 24px; height: 24px; font-size: 9px; }
+    table.gantt-grid th.proc-col, table.gantt-grid td.proc-col { width: 60px; min-width: 60px; font-size: 11px; }
+    table.gantt-grid td.wait { font-size: 8px; }
+  }
 </style>
 </head>
 <body>
@@ -208,7 +238,7 @@
         </div>
         <div class="field" id="priorityOrderField" style="display:none;">
           <label for="priorityOrder">Orden de prioridad</label>
-          <select id="priorityOrder" style="width:230px;">
+          <select id="priorityOrder">
             <option value="asc">Ascendente (menor = mayor prioridad)</option>
             <option value="desc">Descendente (mayor = mayor prioridad)</option>
           </select>
