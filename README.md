@@ -14,7 +14,7 @@ Aplicación web (un solo archivo HTML) para calcular la planificación de proces
 
 ## Cómo usar
 
-1. Abre `planificador.html` en tu navegador (doble clic).
+1. Abre `index.html` en tu navegador (doble clic) o entra a la URL de GitHub Pages.
 2. Elige el algoritmo y el número de procesos.
 3. Genera los campos y captura el tiempo de llegada y la ráfaga de CPU (y prioridad o quantum si aplica).
 4. Pulsa "Calcular y dibujar Gantt".
