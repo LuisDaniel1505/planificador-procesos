@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planificador de Procesos — Diagrama de Gantt</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --muted: #64748b;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --danger: #dc2626;
+    --idle: #cbd5e1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; font-weight: 600; color: var(--muted); }
+  select, input[type="number"] {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    width: 140px;
+    background: #fff;
+  }
+  select:focus, input[type="number"]:focus {
+    outline: 2px solid var(--accent);
+    border-color: transparent;
+  }
+  button {
+    padding: 9px 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: var(--accent-hover); }
+
+  .info {
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    color: #3730a3;
+    font-size: 14px;
+  }
+
+  table.fields {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+  table.fields th, table.fields td {
+    padding: 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  table.fields th { font-size: 13px; color: var(--muted); }
+  table.fields input {
+    width: 90px;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .msg { margin-top: 12px; font-size: 14px; font-weight: 600; }
+  .msg.error { color: var(--danger); }
+  .msg.ok { color: #16a34a; }
+
+  .results h2 { font-size: 18px; margin: 4px 0 14px; }
+
+  /* ---- Cuadrícula estilo Excel (Gantt) ---- */
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .legend .sw { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--border); vertical-align: -2px; margin-right: 5px; }
+  .legend .sw.run { background: #4f46e5; }
+  .legend .sw.wait { background: #f1f5f9; }
+  .legend .sw.blank { background: #fff; }
+  .legend .sw.queue { background: #fef9c3; }
+
+  .grid-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  table.gantt-grid { border-collapse: collapse; }
+  table.gantt-grid th, table.gantt-grid td {
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    text-align: center;
+    font-size: 10px;
+    padding: 0;
+  }
+  table.gantt-grid thead th {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 600;
+    height: 26px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  table.gantt-grid th.proc-col, table.gantt-grid td.proc-col {
+    width: 84px;
+    min-width: 84px;
+    position: sticky;
+    left: 0;
+    background: #f8fafc;
+    font-weight: 700;
+    font-size: 13px;
+    z-index: 2;
+    border-right: 2px solid var(--border);
+  }
+  table.gantt-grid td.wait {
+    background: #f1f5f9;
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 600;
+  }
+  table.gantt-grid td.run { border-right: 1px solid rgba(255,255,255,0.35); }
+  table.gantt-grid td.blank { background: #fff; }
+  table.gantt-grid td.queue { background: #fef9c3; line-height: 1; }
+  table.gantt-grid td.queue-empty { background: #fff; color: #cbd5e1; }
+  table.gantt-grid .dot { display: inline-block; width: 6px; height: 6px; border-radius: 2px; margin: 0 1px; vertical-align: middle; }
+
+  /* ---- Tabla de resultados ---- */
+  table.results {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 18px;
+    font-size: 14px;
+  }
+  table.results th, table.results td {
+    padding: 9px 10px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  table.results th { background: #f8fafc; color: var(--muted); font-size: 12px; }
+  table.results tr.avg td { font-weight: 700; background: #eef2ff; border-top: 2px solid var(--border); color: #3730a3; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Planificador de Procesos</h1>
+    <p class="sub">Calcula el orden de ejecución y dibuja el diagrama de Gantt en cuadrícula.</p>
+
+    <div class="card">
+      <div class="controls">
+        <div class="field">
+          <label for="algo">Algoritmo</label>
+          <select id="algo">
+            <option value="fcfs">FCFS</option>
+            <option value="sjf">SJF / SJN</option>
+            <option value="priority">Prioridad</option>
+            <option value="srt">SRT (SRTF)</option>
+            <option value="rr">Round Robin</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="n">Número de procesos</label>
+          <input id="n" type="number" min="1" value="6">
+        </div>
+        <div class="field" id="quantumField" style="display:none;">
+          <label for="quantum">Quantum</label>
+          <input id="quantum" type="number" min="1" value="2">
+        </div>
+        <div class="field" id="priorityOrderField" style="display:none;">
+          <label for="priorityOrder">Orden de prioridad</label>
+          <select id="priorityOrder" style="width:230px;">
+            <option value="asc">Ascendente (menor = mayor prioridad)</option>
+            <option value="desc">Descendente (mayor = mayor prioridad)</option>
+          </select>
+        </div>
+        <button id="genBtn">Generar campos</button>
+      </div>
+      <div class="info" id="info">
+        <b>FCFS</b> (First Come First Served): ejecuta los procesos en orden de llegada. No apropiativo.
+      </div>
+    </div>
+
+    <div class="card" id="fieldsCard" style="display:none;">
+      <h2 style="margin:0 0 6px;font-size:18px;">Datos de los procesos</h2>
+      <div id="fields"></div>
+      <div style="margin-top:14px; display:flex; gap:10px;">
+        <button id="calcBtn">Calcular y dibujar Gantt</button>
+      </div>
+    </div>
+
+    <div class="msg" id="msg"></div>
+
+    <div class="card results" id="results" style="display:none;">
+      <h2>Resultado</h2>
+      <div id="chart"></div>
+      <div id="table"></div>
+    </div>
+  </div>
+
+<script>
+const palette = [
+  "#4f46e5", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#14b8a6", "#f97316", "#ec4899", "#22c55e", "#6366f1", "#eab308"
+];
+
+const algoInfo = {
+  fcfs: "<b>FCFS</b> (First Come First Served): ejecuta los procesos en orden de llegada. No apropiativo.",
+  sjf: "<b>SJF / SJN</b> (Shortest Job First / Next): ejecuta primero el proceso con la ráfaga de CPU más corta entre los que ya llegaron. No apropiativo.",
+  priority: "<b>Prioridad</b>: ejecuta primero el proceso con mayor prioridad según el orden elegido (ascendente o descendente). No apropiativo.",
+  srt: "<b>SRT / SRTF</b> (Shortest Remaining Time): versión apropiativa del SJF; en cada instante corre el proceso con menor tiempo restante.",
+  rr: "<b>Round Robin</b>: cada proceso recibe un <i>quantum</i> de tiempo; si no termina, pasa al final de la cola. Apropiativo."
+};
+
+let values = { arrival: [], burst: [], priority: [] };
+let generated = false;
+
+const $ = (id) => document.getElementById(id);
+
+// ---------- UI ----------
+$("algo").addEventListener("change", () => {
+  $("info").innerHTML = algoInfo[$("algo").value];
+  $("quantumField").style.display = $("algo").value === "rr" ? "flex" : "none";
+  $("priorityOrderField").style.display = $("algo").value === "priority" ? "flex" : "none";
+  if (generated) renderFields();
+});
+
+$("genBtn").addEventListener("click", () => {
+  generated = true;
+  $("fieldsCard").style.display = "block";
+  $("results").style.display = "none";
+  $("msg").textContent = "";
+  renderFields();
+});
+
+function renderFields() {
+  const n = clampN(parseInt($("n").value, 10) || 1);
+  $("n").value = n;
+  const isPriority = $("algo").value === "priority";
+
+  values.arrival.length = n;
+  values.burst.length = n;
+  values.priority.length = n;
+
+  let html = '<table class="fields"><thead><tr>';
+  html += '<th>Proceso</th><th>Tiempo de llegada</th><th>Ráfaga de CPU</th>';
+  if (isPriority) html += '<th>Prioridad</th>';
+  html += '</tr></thead><tbody>';
+  for (let i = 0; i < n; i++) {
+    const a = values.arrival[i] ?? "";
+    const b = values.burst[i] ?? "";
+    const p = values.priority[i] ?? "";
+    html += '<tr>';
+    html += '<td><b>P' + (i + 1) + '</b></td>';
+    html += '<td><input type="number" min="0" step="any" value="' + a + '" oninput="values.arrival[' + i + ']=this.value"></td>';
+    html += '<td><input type="number" min="0" step="any" value="' + b + '" oninput="values.burst[' + i + ']=this.value"></td>';
+    if (isPriority) html += '<td><input type="number" step="any" value="' + p + '" oninput="values.priority[' + i + ']=this.value"></td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  $("fields").innerHTML = html;
+}
+
+function clampN(n) {
+  if (!isFinite(n) || n < 1) return 1;
+  if (n > 50) return 50;
+  return n;
+}
+
+// ---------- Lectura de datos ----------
+function readProcesses() {
+  const n = clampN(parseInt($("n").value, 10) || 1);
+  const isPriority = $("algo").value === "priority";
+  const procs = [];
+  for (let i = 0; i < n; i++) {
+    const arrival = Number(values.arrival[i]);
+    const burst = Number(values.burst[i]);
+    const priority = isPriority ? Number(values.priority[i]) : 0;
+    procs.push({ id: i, arrival, burst, priority });
+  }
+  return procs;
+}
+
+function validate(procs, algo) {
+  for (const p of procs) {
+    if (!isFinite(p.arrival) || p.arrival < 0) return "El tiempo de llegada de P" + (p.id + 1) + " no es válido.";
+    if (!isFinite(p.burst) || p.burst <= 0) return "La ráfaga de CPU de P" + (p.id + 1) + " debe ser mayor que 0.";
+    if (algo === "priority" && !isFinite(p.priority)) return "La prioridad de P" + (p.id + 1) + " no es válida.";
+  }
+  if (algo === "rr") {
+    const q = Number($("quantum").value);
+    if (!isFinite(q) || q <= 0) return "El quantum debe ser mayor que 0.";
+  }
+  return null;
+}
+
+// ---------- Algoritmos ----------
+// Cada algoritmo devuelve una lista de segmentos {proc, start, end} (proc = índice 0-based).
+
+function fcfs(procs) {
+  const order = [...procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id);
+  const seg = [];
+  let t = order.length ? order[0].arrival : 0;
+  for (const p of order) {
+    if (t < p.arrival) t = p.arrival;
+    seg.push({ proc: p.id, start: t, end: t + p.burst });
+    t += p.burst;
+  }
+  return seg;
+}
+
+function sjf(procs) {
+  const seg = [];
+  const done = new Array(procs.length).fill(false);
+  const sorted = [...procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id);
+  let t = sorted.length ? sorted[0].arrival : 0;
+  let remaining = procs.length;
+  while (remaining > 0) {
+    const arrived = sorted.filter(p => !done[p.id] && p.arrival <= t);
+    if (arrived.length === 0) {
+      t = sorted.find(p => !done[p.id]).arrival;
+      continue;
+    }
+    const p = arrived.sort((a, b) => a.burst - b.burst || a.arrival - b.arrival || a.id - b.id)[0];
+    seg.push({ proc: p.id, start: t, end: t + p.burst });
+    t += p.burst;
+    done[p.id] = true;
+    remaining--;
+  }
+  return seg;
+}
+
+function priorityAlg(procs, order) {
+  const seg = [];
+  const done = new Array(procs.length).fill(false);
+  const dir = order === "desc" ? -1 : 1;
+  const sorted = [...procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id);
+  let t = sorted.length ? sorted[0].arrival : 0;
+  let remaining = procs.length;
+  while (remaining > 0) {
+    const arrived = sorted.filter(p => !done[p.id] && p.arrival <= t);
+    if (arrived.length === 0) {
+      t = sorted.find(p => !done[p.id]).arrival;
+      continue;
+    }
+    const p = arrived.sort((a, b) => (a.priority - b.priority) * dir || a.arrival - b.arrival || a.id - b.id)[0];
+    seg.push({ proc: p.id, start: t, end: t + p.burst });
+    t += p.burst;
+    done[p.id] = true;
+    remaining--;
+  }
+  return seg;
+}
+
+function srt(procs) {
+  const seg = [];
+  const remaining = procs.map(p => p.burst);
+  const sorted = [...procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id);
+  let t = sorted.length ? sorted[0].arrival : 0;
+  let toFinish = procs.length;
+  let current = null;
+  let start = t;
+
+  while (toFinish > 0) {
+    const avail = procs.filter(p => remaining[p.id] > 0 && p.arrival <= t);
+    let next = null;
+    if (avail.length > 0) {
+      next = avail.sort((a, b) => remaining[a.id] - remaining[b.id] || a.arrival - b.arrival || a.id - b.id)[0].id;
+    }
+
+    if (next === null) {
+      if (current !== null) { seg.push({ proc: current, start, end: t }); current = null; }
+      t = sorted.find(p => remaining[p.id] > 0).arrival;
+      continue;
+    }
+
+    if (next !== current) {
+      if (current !== null) seg.push({ proc: current, start, end: t });
+      current = next;
+      start = t;
+    }
+
+    remaining[current]--;
+    t++;
+    if (remaining[current] === 0) {
+      seg.push({ proc: current, start, end: t });
+      current = null;
+      toFinish--;
+    }
+  }
+  return seg;
+}
+
+function rr(procs, quantum) {
+  const seg = [];
+  const remaining = procs.map(p => p.burst);
+  const sorted = [...procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id);
+  const ready = [];
+  let idx = 0;
+  let completed = 0;
+  let t = sorted.length ? sorted[0].arrival : 0;
+
+  const addArrived = (time) => {
+    while (idx < sorted.length && sorted[idx].arrival <= time) {
+      ready.push(sorted[idx].id);
+      idx++;
+    }
+  };
+
+  addArrived(t);
+  while (completed < procs.length) {
+    if (ready.length === 0) {
+      t = sorted[idx].arrival;
+      addArrived(t);
+      continue;
+    }
+    const p = ready.shift();
+    const run = Math.min(quantum, remaining[p]);
+    seg.push({ proc: p, start: t, end: t + run });
+    t += run;
+    addArrived(t);
+    remaining[p] -= run;
+    if (remaining[p] === 0) completed++;
+    else ready.push(p);
+  }
+  return seg;
+}
+
+// ---------- Cálculo de métricas ----------
+function computeResults(segments, procs) {
+  const completion = new Array(procs.length).fill(0);
+  const total = segments.length ? segments[segments.length - 1].end : 0;
+  for (const s of segments) {
+    if (s.proc >= 0) completion[s.proc] = Math.max(completion[s.proc], s.end);
+  }
+  const turnaround = procs.map(p => completion[p.id] - p.arrival);
+  const waiting = procs.map((p, i) => turnaround[i] - p.burst);
+  return { completion, turnaround, waiting, total };
+}
+
+// Ordena los procesos por tiempo de llegada (empate: por número de proceso).
+function sortByArrival(procs) {
+  return [...procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id);
+}
+
+// ---------- Cuadrícula estilo Excel ----------
+function renderGrid(segments, procs) {
+  const res = computeResults(segments, procs);
+  const total = res.total;
+  if (total <= 0) return '<p>No hay procesos que mostrar.</p>';
+
+  // dueño de cada unidad de tiempo (-1 = inactivo)
+  const owner = new Array(total).fill(-1);
+  for (const s of segments) {
+    if (s.proc < 0) continue;
+    for (let t = s.start; t < s.end; t++) if (t < total) owner[t] = s.proc;
+  }
+
+  let html = '<div class="legend">';
+  html += '<span><span class="sw run"></span>Ejecución (CPU)</span>';
+  html += '<span><span class="sw wait"></span>TE = Tiempo de espera</span>';
+  html += '<span><span class="sw blank"></span>Sin actividad (no llegó / terminó)</span>';
+  html += '<span><span class="sw queue"></span>Cola de listos (esperando CPU)</span>';
+  html += '</div>';
+  html += '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">Eje de tiempo: inicia en <b>0</b> (borde izquierdo); cada celda se etiqueta con el tiempo en que <b>termina</b>.</div>';
+
+  html += '<div class="grid-scroll"><table class="gantt-grid">';
+  html += '<thead><tr><th class="proc-col">Proceso</th>';
+  // Eje como recta numérica: cada celda se etiqueta con el tiempo en que TERMINA (arranca en 0 a la izquierda).
+  for (let t = 0; t < total; t++) html += '<th>' + (t + 1) + '</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const p of sortByArrival(procs)) {
+    const color = palette[p.id % palette.length];
+    html += '<tr><td class="proc-col">P' + (p.id + 1) + '</td>';
+    for (let t = 0; t < total; t++) {
+      if (t < p.arrival || t >= res.completion[p.id]) {
+        html += '<td class="blank"></td>';
+      } else if (owner[t] === p.id) {
+        html += '<td class="run" style="background:' + color + '"></td>';
+      } else {
+        html += '<td class="wait">TE</td>';
+      }
+    }
+    html += '</tr>';
+  }
+
+  // Fila de la cola de listos: procesos que ya llegaron y están esperando CPU en ese instante.
+  html += '<tr><td class="proc-col" title="Cola de listos (procesos esperando CPU)">Cola</td>';
+  for (let t = 0; t < total; t++) {
+    const ready = procs.filter(p => p.arrival <= t && t < res.completion[p.id] && owner[t] !== p.id)
+                       .sort((a, b) => a.arrival - b.arrival || a.id - b.id);
+    if (ready.length === 0) {
+      html += '<td class="queue-empty">·</td>';
+    } else {
+      const dots = ready.map(p => '<span class="dot" style="background:' + palette[p.id % palette.length] + '"></span>').join('');
+      const names = ready.map(p => 'P' + (p.id + 1)).join(', ');
+      html += '<td class="queue" title="' + names + '">' + dots + '</td>';
+    }
+  }
+  html += '</tr>';
+
+  html += '</tbody></table></div>';
+  return html;
+}
+
+// ---------- Tabla de resultados y promedios ----------
+function renderTable(procs, res) {
+  let html = '<table class="results"><thead><tr>';
+  html += '<th>Proceso</th><th>Llegada</th><th>Ráfaga</th><th>Finalización</th><th>Retorno (TAT)</th><th>Espera</th>';
+  html += '</tr></thead><tbody>';
+  let sumComp = 0, sumTat = 0, sumWait = 0;
+  for (const p of sortByArrival(procs)) {
+    sumComp += res.completion[p.id];
+    sumTat += res.turnaround[p.id];
+    sumWait += res.waiting[p.id];
+    html += '<tr>';
+    html += '<td><b>P' + (p.id + 1) + '</b></td>';
+    html += '<td>' + p.arrival + '</td>';
+    html += '<td>' + p.burst + '</td>';
+    html += '<td>' + res.completion[p.id] + '</td>';
+    html += '<td>' + res.turnaround[p.id] + '</td>';
+    html += '<td>' + res.waiting[p.id] + '</td>';
+    html += '</tr>';
+  }
+  const n = procs.length;
+  html += '<tr class="avg"><td colspan="3">Promedio</td>';
+  html += '<td>' + (sumComp / n).toFixed(2) + '</td>';
+  html += '<td>' + (sumTat / n).toFixed(2) + '</td>';
+  html += '<td>' + (sumWait / n).toFixed(2) + '</td>';
+  html += '</tr></tbody></table>';
+  return html;
+}
+
+// ---------- Acción principal ----------
+$("calcBtn").addEventListener("click", () => {
+  const msg = $("msg");
+  msg.textContent = "";
+  msg.className = "msg";
+
+  const procs = readProcesses();
+  const algo = $("algo").value;
+  const err = validate(procs, algo);
+  if (err) { msg.textContent = err; msg.className = "msg error"; return; }
+
+  let segments;
+  if (algo === "fcfs") segments = fcfs(procs);
+  else if (algo === "sjf") segments = sjf(procs);
+  else if (algo === "priority") segments = priorityAlg(procs, $("priorityOrder").value);
+  else if (algo === "srt") segments = srt(procs);
+  else if (algo === "rr") segments = rr(procs, Number($("quantum").value));
+
+  const res = computeResults(segments, procs);
+  $("chart").innerHTML = renderGrid(segments, procs);
+  $("table").innerHTML = renderTable(procs, res);
+  $("results").style.display = "block";
+  msg.textContent = "Listo. Tiempo total de ejecución: " + res.total + " unidades.";
+  msg.className = "msg ok";
+  $("results").scrollIntoView({ behavior: "smooth" });
+});
+</script>
+</body>
+</html>
