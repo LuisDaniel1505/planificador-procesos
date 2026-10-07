@@ -771,6 +771,17 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// Genera `count` enteros distintos en [0, max].
+function randomDistinctInts(count, max) {
+  const pool = [];
+  for (let i = 0; i <= max; i++) pool.push(i);
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = randomInt(0, i);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count);
+}
+
 const genState = { algo: 'fcfs', order: 'asc', quantum: 2, procs: [], segments: [], res: null, total: 0, owner: [], steps: [] };
 let studentGrid = [];
 let studentNames = [];
@@ -812,13 +823,15 @@ function generateExercise() {
     order = 'asc';
   }
 
+  const maxArrival = randomInt(n, Math.round(3 * n));
+  const arrivals = randomDistinctInts(n, maxArrival);
   const procs = [];
   for (let i = 0; i < n; i++) {
     procs.push({
       id: i,
       name: 'P' + (i + 1),
-      arrival: randomInt(0, 6),
-      burst: randomInt(1, 8),
+      arrival: arrivals[i],
+      burst: randomInt(1, 10),
       priority: randomInt(1, n),
     });
   }
