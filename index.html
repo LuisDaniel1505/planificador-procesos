@@ -123,6 +123,7 @@
   .legend .sw.queue { background: #fef9c3; }
 
   .grid-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .tscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table.gantt-grid { border-collapse: collapse; }
   table.gantt-grid th, table.gantt-grid td {
     border-right: 1px solid var(--border);
@@ -225,7 +226,8 @@
     table.fields input { width: 64px; font-size: 16px; }
 
     #table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table.results { min-width: 460px; }
+    #genConfig { width: 100%; }
+    #table table.results, .tscroll table.results { min-width: 460px; }
     table.results th, table.results td { padding: 7px 6px; }
 
     table.gantt-grid th, table.gantt-grid td { width: 24px; min-width: 24px; height: 24px; font-size: 9px; }
@@ -976,7 +978,7 @@ function revealAnswer() {
   const st = genState;
   let html = '<h2 style="margin:0 0 8px;font-size:16px;">Respuesta correcta</h2>';
   html += renderGrid(st.segments, st.procs, false);
-  html += renderTable(st.procs, st.res, false);
+  html += '<div class="tscroll">' + renderTable(st.procs, st.res, false) + '</div>';
   html += '<h2 style="margin-top:18px;font-size:16px;">Cola de listos y por qué sigue cada proceso</h2>';
   html += renderSteps(st.steps);
   $("answerBox").innerHTML = html;
