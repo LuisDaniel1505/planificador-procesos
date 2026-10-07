@@ -203,6 +203,8 @@
   button.secondary:hover { background: #475569; }
   table.gantt-grid td.ecell { cursor: pointer; user-select: none; -webkit-user-select: none; }
   table.gantt-grid td.ecell.wrong { outline: 2px solid var(--danger); outline-offset: -2px; position: relative; z-index: 3; }
+  table.gantt-grid td.proc-col input.ename { width: 100%; max-width: 64px; padding: 3px 4px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; text-align: center; background: #fff; }
+  table.gantt-grid td.proc-col input.ename.wrong-name { border-color: var(--danger); background: #fef2f2; outline: 2px solid var(--danger); outline-offset: -1px; }
 
   /* ---- Ajustes para dispositivos móviles ---- */
   @media (max-width: 640px) {
@@ -771,6 +773,7 @@ function randomInt(min, max) {
 
 const genState = { algo: 'fcfs', order: 'asc', quantum: 2, procs: [], segments: [], res: null, total: 0, owner: [], steps: [] };
 let studentGrid = [];
+let studentNames = [];
 let currentTool = 'run';
 let genPainting = false;
 let genOrientation = 'horizontal';
@@ -833,8 +836,10 @@ function generateExercise() {
   const owner = new Array(total).fill(-1);
   for (const s of segments) for (let t = s.start; t < s.end; t++) if (t < total) owner[t] = s.proc;
 
-  Object.assign(genState, { algo, order, quantum, procs, segments, res, total, owner, steps: result.steps });
+  const arrivalOrder = [...procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id);
+  Object.assign(genState, { algo, order, quantum, procs, arrivalOrder, segments, res, total, owner, steps: result.steps });
   studentGrid = procs.map(() => new Array(total).fill('blank'));
+  studentNames = new Array(procs.length).fill('');
   currentTool = 'run';
 
   renderExercise();
@@ -892,20 +897,20 @@ function renderExercise() {
   html += '</div>';
 
   html += '<div class="grid-scroll" id="editGridWrap"><table class="gantt-grid">';
-  html += '<thead><tr><th class="proc-col">Nombre</th>';
+  html += '<thead><tr><th class="proc-col">Proceso</th>';
   for (let t = 0; t < st.total; t++) html += '<th>' + (t + 1) + '</th>';
   html += '</tr></thead><tbody>';
-  for (const p of st.procs) {
-    html += '<tr><td class="proc-col">' + esc(p.name) + '</td>';
+  for (let i = 0; i < st.procs.length; i++) {
+    html += '<tr><td class="proc-col"><input type="text" class="ename" data-row="' + i + '" value="' + esc(studentNames[i] || '') + '" placeholder="P?"></td>';
     for (let t = 0; t < st.total; t++) {
-      const cell = studentGrid[p.id][t];
+      const cell = studentGrid[i][t];
       let cls = 'ecell';
       let bg = '';
       let txt = '';
-      if (cell === 'run') { cls += ' run'; bg = 'style="background:' + palette[p.id % palette.length] + '"'; }
+      if (cell === 'run') { cls += ' run'; bg = 'style="background:#4f46e5"'; }
       else if (cell === 'wait') { cls += ' wait'; txt = 'TE'; }
       else { cls += ' blank'; }
-      html += '<td class="' + cls + '" data-p="' + p.id + '" data-t="' + t + '" ' + bg + '>' + txt + '</td>';
+      html += '<td class="' + cls + '" data-row="' + i + '" data-t="' + t + '" ' + bg + '>' + txt + '</td>';
     }
     html += '</tr>';
   }
@@ -949,18 +954,24 @@ function bindEditable() {
     if (cell) applyCell(cell);
   });
 
+  document.querySelectorAll('input.ename').forEach(inp => {
+    inp.addEventListener('input', () => {
+      studentNames[parseInt(inp.dataset.row, 10)] = inp.value;
+    });
+  });
+
   $("verifyBtn").addEventListener('click', verify);
   $("revealBtn").addEventListener('click', revealAnswer);
 }
 
 function applyCell(cell) {
-  const p = parseInt(cell.dataset.p, 10);
+  const r = parseInt(cell.dataset.row, 10);
   const t = parseInt(cell.dataset.t, 10);
-  studentGrid[p][t] = currentTool;
+  studentGrid[r][t] = currentTool;
   cell.classList.remove('run', 'wait', 'blank', 'wrong');
   if (currentTool === 'run') {
     cell.classList.add('run');
-    cell.style.background = palette[p % palette.length];
+    cell.style.background = '#4f46e5';
     cell.textContent = '';
   } else if (currentTool === 'wait') {
     cell.classList.add('wait');
@@ -982,26 +993,43 @@ function correctState(p, t) {
 
 function verify() {
   const st = genState;
+  const order = st.arrivalOrder;
   let ok = 0, total = 0;
-  const wrongs = [];
-  for (const p of st.procs) {
+  const wrongCells = [];
+  const wrongNames = [];
+
+  for (let i = 0; i < st.procs.length; i++) {
+    total++;
+    const correctName = order[i].name;
+    if ((studentNames[i] || '').trim() === correctName) ok++;
+    else wrongNames.push(i);
+
+    const p = order[i];
     for (let t = 0; t < st.total; t++) {
       total++;
-      if (correctState(p, t) === studentGrid[p.id][t]) ok++;
-      else wrongs.push({ p: p.id, t });
+      if (correctState(p, t) === studentGrid[i][t]) ok++;
+      else wrongCells.push({ row: i, t });
     }
   }
+
   document.querySelectorAll('td.ecell').forEach(c => c.classList.remove('wrong'));
-  for (const w of wrongs) {
-    const cell = document.querySelector('td.ecell[data-p="' + w.p + '"][data-t="' + w.t + '"]');
+  document.querySelectorAll('input.ename').forEach(el => el.classList.remove('wrong-name'));
+  for (const w of wrongCells) {
+    const cell = document.querySelector('td.ecell[data-row="' + w.row + '"][data-t="' + w.t + '"]');
     if (cell) cell.classList.add('wrong');
   }
+  for (const i of wrongNames) {
+    const el = document.querySelector('input.ename[data-row="' + i + '"]');
+    if (el) el.classList.add('wrong-name');
+  }
+
   const msg = $("verifyMsg");
-  if (wrongs.length === 0) {
-    msg.textContent = '¡Correcto! Las ' + total + ' celdas coinciden. 🎉';
+  const wrongCount = wrongCells.length + wrongNames.length;
+  if (wrongCount === 0) {
+    msg.textContent = '¡Correcto! Las ' + total + ' casillas coinciden. 🎉';
     msg.className = 'msg ok';
   } else {
-    msg.textContent = ok + ' de ' + total + ' celdas correctas (' + wrongs.length + ' marcadas en rojo).';
+    msg.textContent = ok + ' de ' + total + ' correctas (' + wrongCount + ' marcadas en rojo).';
     msg.className = 'msg error';
   }
 }
@@ -1009,8 +1037,8 @@ function verify() {
 function revealAnswer() {
   const st = genState;
   let html = '<h2 style="margin:0 0 8px;font-size:16px;">Respuesta correcta</h2>';
-  html += renderGrid(st.segments, st.procs, false);
-  html += '<div class="tscroll">' + renderTable(st.procs, st.res, false) + '</div>';
+  html += renderGrid(st.segments, st.arrivalOrder, false);
+  html += '<div class="tscroll">' + renderTable(st.arrivalOrder, st.res, false) + '</div>';
   html += '<h2 style="margin-top:18px;font-size:16px;">Cola de listos y por qué sigue cada proceso</h2>';
   html += renderSteps(st.steps);
   $("answerBox").innerHTML = html;
