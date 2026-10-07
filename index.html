@@ -773,6 +773,7 @@ const genState = { algo: 'fcfs', order: 'asc', quantum: 2, procs: [], segments: 
 let studentGrid = [];
 let currentTool = 'run';
 let genPainting = false;
+let genOrientation = 'horizontal';
 
 function genToggle() {
   $("genConfig").style.display = $("genMode").value === 'exam' ? 'none' : 'flex';
@@ -839,6 +840,37 @@ function generateExercise() {
   renderExercise();
 }
 
+function renderDataTable(st) {
+  if (genOrientation === 'vertical') {
+    let html = '<table class="results"><thead><tr><th></th>';
+    for (const p of st.procs) html += '<th>' + esc(p.name) + '</th>';
+    html += '</tr></thead><tbody>';
+    html += '<tr><td><b>Llegada</b></td>';
+    for (const p of st.procs) html += '<td>' + p.arrival + '</td>';
+    html += '</tr>';
+    html += '<tr><td><b>Ráfaga</b></td>';
+    for (const p of st.procs) html += '<td>' + p.burst + '</td>';
+    html += '</tr>';
+    if (st.algo === 'priority') {
+      html += '<tr><td><b>Prioridad</b></td>';
+      for (const p of st.procs) html += '<td>' + p.priority + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+  }
+  let html = '<table class="results"><thead><tr><th>Proceso</th><th>Llegada</th><th>Ráfaga</th>';
+  if (st.algo === 'priority') html += '<th>Prioridad</th>';
+  html += '</tr></thead><tbody>';
+  for (const p of st.procs) {
+    html += '<tr><td><b>' + esc(p.name) + '</b></td><td>' + p.arrival + '</td><td>' + p.burst + '</td>';
+    if (st.algo === 'priority') html += '<td>' + p.priority + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function renderExercise() {
   const st = genState;
   const algoNames = { fcfs: 'FCFS', sjf: 'SJF / SJN', priority: 'Prioridad', srt: 'SRT (SRTF)', rr: 'Round Robin' };
@@ -848,20 +880,15 @@ function renderExercise() {
   if (st.algo === 'priority') html += ' · Orden: <b>' + (st.order === 'desc' ? 'descendente (mayor nº = mayor prioridad)' : 'ascendente (menor nº = mayor prioridad)') + '</b>';
   html += '</div>';
 
-  html += '<table class="results"><thead><tr><th>Proceso</th><th>Llegada</th><th>Ráfaga</th>';
-  if (st.algo === 'priority') html += '<th>Prioridad</th>';
-  html += '</tr></thead><tbody>';
-  for (const p of st.procs) {
-    html += '<tr><td><b>' + esc(p.name) + '</b></td><td>' + p.arrival + '</td><td>' + p.burst + '</td>';
-    if (st.algo === 'priority') html += '<td>' + p.priority + '</td>';
-    html += '</tr>';
-  }
-  html += '</tbody></table>';
+  html += '<div style="display:flex; justify-content:flex-end; margin-bottom:4px;">';
+  html += '<button type="button" class="tool" id="orientBtn">' + (genOrientation === 'horizontal' ? '⇄ Ver vertical' : '⇄ Ver horizontal') + '</button>';
+  html += '</div>';
+  html += renderDataTable(st);
 
   html += '<div class="toolbar">';
-  html += '<button class="tool active" data-tool="run">Ejecución</button>';
-  html += '<button class="tool" data-tool="wait">TE (espera)</button>';
-  html += '<button class="tool" data-tool="blank">Borrar</button>';
+  html += '<button class="tool' + (currentTool === 'run' ? ' active' : '') + '" data-tool="run">Ejecución</button>';
+  html += '<button class="tool' + (currentTool === 'wait' ? ' active' : '') + '" data-tool="wait">TE (espera)</button>';
+  html += '<button class="tool' + (currentTool === 'blank' ? ' active' : '') + '" data-tool="blank">Borrar</button>';
   html += '</div>';
 
   html += '<div class="grid-scroll" id="editGridWrap"><table class="gantt-grid">';
@@ -896,12 +923,17 @@ function renderExercise() {
 }
 
 function bindEditable() {
-  document.querySelectorAll('.tool').forEach(btn => {
+  document.querySelectorAll('.tool[data-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
       currentTool = btn.dataset.tool;
-      document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tool[data-tool]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     });
+  });
+
+  $("orientBtn").addEventListener('click', () => {
+    genOrientation = genOrientation === 'horizontal' ? 'vertical' : 'horizontal';
+    renderExercise();
   });
 
   const wrap = $("editGridWrap");
